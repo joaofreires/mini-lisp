@@ -8,6 +8,7 @@ pub fn parse(input: &str) -> LispResult {
 }
 
 fn parse_expression(chars: &mut Peekable<Chars>) -> LispResult {
+    skip_whitespace(chars, false)?;
     let ch = chars
         .peek()
         .ok_or(LispError::Generic("Unexpected end of input".to_string()))?;
@@ -135,7 +136,7 @@ fn skip_comment(chars: &mut Peekable<Chars>) {
 
 fn parse_symbol_or_function(chars: &mut Peekable<Chars>) -> LispResult {
     let mut symbol = String::new();
-
+    skip_whitespace(chars, false)?;
     while let Some(ch) = chars.peek() {
         if ch.is_alphanumeric()
             || *ch == '-'
@@ -150,7 +151,6 @@ fn parse_symbol_or_function(chars: &mut Peekable<Chars>) -> LispResult {
             break;
         }
     }
-
     if symbol.is_empty() {
         return Err(LispError::Generic("Unexpected character".to_string()));
     }
