@@ -1,4 +1,5 @@
 use crate::prelude::Environment;
+use std::collections::VecDeque;
 use std::fmt;
 use std::rc::Rc;
 
@@ -14,6 +15,7 @@ pub enum LispValue {
         Rc<dyn Fn(&mut Environment, &[LispValue]) -> Result<LispValue, LispError>>,
     ),
     Lambda(Lambda),
+    Pair(Box<(LispValue, LispValue)>),
 }
 
 impl PartialEq for LispValue {
@@ -41,6 +43,10 @@ impl fmt::Debug for LispValue {
             LispValue::List(l) => write!(f, "List({:?})", l),
             LispValue::Function(name, _) => write!(f, "Function({})", name),
             LispValue::Lambda(lambda) => write!(f, "Lambda({:?})", lambda),
+            LispValue::Pair(pair) => {
+                let (first, second) = *(pair.clone());
+                write!(f, "Pair<{:?}, {:?}>", first.to_string(), second.to_string())
+            }
         }
     }
 }
@@ -55,7 +61,39 @@ impl fmt::Display for LispValue {
             LispValue::List(l) => write!(f, "List({:?})", l),
             LispValue::Function(name, _) => write!(f, "Function({})", name),
             LispValue::Lambda(lambda) => write!(f, "Lambda({:?})", lambda),
+            LispValue::Pair(pair) => {
+                let (first, second) = *(pair.clone());
+                write!(f, "Pair<{:?}, {:?}>", first.to_string(), second.to_string())
+            }
         }
+    }
+}
+
+impl IntoIterator for LispValue {
+    type IntoIter = IntoIter;
+    type Item = LispValue;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            LispValue::Pair(pair) => IntoIter {
+                remaining: VecDeque::from([pair.0, pair.1]),
+            },
+            _ => IntoIter {
+                remaining: VecDeque::from([self]),
+            },
+        }
+    }
+}
+
+pub struct IntoIter {
+    remaining: VecDeque<LispValue>,
+}
+
+impl Iterator for IntoIter {
+    type Item = LispValue;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.remaining.pop_front()
     }
 }
 
@@ -77,9 +115,9 @@ pub fn evaluate(expr: LispValue, env: &mut Environment) -> LispResult {
         LispValue::Number(_) | LispValue::Float(_) | LispValue::Str(_) => Ok(expr),
         LispValue::Symbol(name) => env.get(&name),
         LispValue::List(list) => evaluate_list(list, env),
-        LispValue::Function(_, _) | LispValue::Lambda(_) => Err(LispError::Generic(
-            "Cannot evaluate a function or lambda directly".to_string(),
-        )),
+        LispValue::Function(_, _) | LispValue::Lambda(_) | LispValue::Pair(_) => Err(
+            LispError::Generic("Cannot evaluate a function or lambda directly".to_string()),
+        ),
     }
 }
 
@@ -126,7 +164,7 @@ fn evaluate_list(list: Vec<LispValue>, env: &mut Environment) -> LispResult {
         _ => {
             let function = evaluate(first.clone(), env)?;
             let evaluated_args = args
-                .iter()
+                .into_iter()
                 .map(|arg| evaluate(arg.clone(), env))
                 .collect::<Result<Vec<LispValue>, LispError>>()?;
             apply_function(function, &evaluated_args, env)
@@ -160,7 +198,14 @@ fn evaluate_lambda(lambda: Lambda, args: &[LispValue], env: &mut Environment) ->
 fn apply_function(function: LispValue, args: &[LispValue], env: &mut Environment) -> LispResult {
     match function {
         LispValue::Function(_, func) => func(env, args),
-        LispValue::Lambda(lambda) => evaluate_lambda(lambda, args, env),
+        LispValue::Lambda(lambda) => evaluate_lambda(
+            lambda,
+            &*(Vec::from(args)
+                .into_iter()
+                .flatten()
+                .collect::<Vec<LispValue>>()),
+            env, // lambda functions receive arguments unpacked
+        ),
         _ => Err(LispError::Generic(
             "First element in the list should be a function or lambda".to_string(),
         )),

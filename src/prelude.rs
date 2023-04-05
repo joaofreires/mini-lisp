@@ -1,5 +1,6 @@
-use crate::ast::{LispError, LispResult, LispValue};
+use crate::ast::{evaluate, LispError, LispResult, LispValue};
 use crate::builtins::built_in_functions;
+use crate::parser::parse;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -51,5 +52,35 @@ impl Environment {
 impl Default for Environment {
     fn default() -> Self {
         Environment::new()
+    }
+}
+
+pub struct LispEngine {
+    env: Environment,
+}
+
+impl LispEngine {
+    pub fn new() -> Self {
+        let mut engine = LispEngine {
+            env: Environment::new(),
+        };
+        engine.env.init();
+        engine
+    }
+
+    pub fn parse(&mut self, expr: &str) -> Result<String, LispError> {
+        match parse(&expr) {
+            Ok(ast) => match evaluate(ast, &mut self.env) {
+                Ok(result) => Ok(format!("{}", result)),
+                Err(err) => Err(err),
+            },
+            Err(err) => Err(err),
+        }
+    }
+}
+
+impl Default for LispEngine {
+    fn default() -> Self {
+        LispEngine::new()
     }
 }
