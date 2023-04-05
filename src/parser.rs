@@ -1,4 +1,4 @@
-use super::ast::{LispError, LispResult, LispValue};
+use crate::ast::{LispError, LispResult, LispValue};
 use std::iter::Peekable;
 use std::str::Chars;
 
@@ -15,7 +15,7 @@ fn parse_expression(chars: &mut Peekable<Chars>) -> LispResult {
     match ch {
         '(' => parse_list(chars),
         '"' => parse_string(chars),
-        '0'..='9' => parse_number(chars),
+        '0'..='9' | '-' => parse_number(chars),
         ';' => {
             skip_comment(chars);
             parse_expression(chars)
@@ -98,6 +98,13 @@ fn parse_string(chars: &mut Peekable<Chars>) -> LispResult {
 fn parse_number(chars: &mut Peekable<Chars>) -> LispResult {
     let mut number = String::new();
     let mut has_decimal = false;
+
+    if let Some(&ch) = chars.peek() {
+        if ch == '-' {
+            number.push(ch);
+            chars.next();
+        }
+    }
 
     while let Some(ch) = chars.peek() {
         if ch.is_digit(10) {

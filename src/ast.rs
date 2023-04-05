@@ -1,4 +1,4 @@
-use super::Environment;
+use crate::prelude::Environment;
 use std::fmt;
 use std::rc::Rc;
 
@@ -11,7 +11,7 @@ pub enum LispValue {
     List(Vec<LispValue>),
     Function(
         String,
-        Rc<dyn Fn(&[LispValue]) -> Result<LispValue, LispError>>,
+        Rc<dyn Fn(&mut Environment, &[LispValue]) -> Result<LispValue, LispError>>,
     ),
     Lambda(Lambda),
 }
@@ -158,7 +158,7 @@ fn evaluate_lambda(lambda: Lambda, args: &[LispValue], env: &mut Environment) ->
 
 fn apply_function(function: LispValue, args: &[LispValue], env: &mut Environment) -> LispResult {
     match function {
-        LispValue::Function(_, func) => func(args),
+        LispValue::Function(_, func) => func(env, args),
         LispValue::Lambda(lambda) => evaluate_lambda(lambda, args, env),
         _ => Err(LispError::Generic(
             "First element in the list should be a function or lambda".to_string(),
