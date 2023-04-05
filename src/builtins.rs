@@ -56,7 +56,21 @@ fn divide(_: &mut Environment, args: &[LispValue]) -> LispResult {
     Ok(LispValue::Float(dividend / divisor))
 }
 
-fn subtract(_: &mut Environment, args: &[LispValue]) -> LispResult {
+fn minus(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    if args.len() != 1 {
+        return Err(LispError::Generic("Expected 1 argument".to_string()));
+    }
+    match args[0] {
+        LispValue::Number(n) => Ok(LispValue::Number(-n)),
+        LispValue::Float(f) => Ok(LispValue::Float(-f)),
+        _ => return Err(LispError::Generic("Expected a number".to_string())),
+    }
+}
+
+fn subtract(env: &mut Environment, args: &[LispValue]) -> LispResult {
+    if args.len() == 1 {
+        return minus(env, args);
+    }
     let difference = args
         .iter()
         .map(|arg| match arg {
@@ -265,4 +279,100 @@ pub fn built_in_functions() -> HashMap<String, LispValue> {
     );
 
     functions
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ast::evaluate;
+    use crate::parser::parse;
+    use crate::Environment;
+
+    #[test]
+    fn test_add() {
+        let mut env = Environment::new();
+        env.init();
+        let input = parse("(+ 1 2 3)").unwrap();
+        let expected = LispValue::Number(6);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+
+        let input = parse("(+ 1.0 2)").unwrap();
+        let expected = LispValue::Float(3.0);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_subtract() {
+        let mut env = Environment::new();
+        env.init();
+        let input = parse("(- 10 2 3)").unwrap();
+        let expected = LispValue::Number(5);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+
+        let input = parse("(- 10.0 3)").unwrap();
+        let expected = LispValue::Float(7.0);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_multiply() {
+        let mut env = Environment::new();
+        env.init();
+        let input = parse("(* 2 3 4)").unwrap();
+        let expected = LispValue::Number(24);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+
+        let input = parse("(* 2.0 3)").unwrap();
+        let expected = LispValue::Float(6.0);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_divide() {
+        let mut env = Environment::new();
+        env.init();
+        let input = parse("(/ 10 2)").unwrap();
+        let expected = LispValue::Float(5.0);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+
+        let input = parse("(/ 10.0 2)").unwrap();
+        let expected = LispValue::Float(5.0);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+
+        let input = parse("(/ 10 0)").unwrap();
+        let result = evaluate(input, &mut env);
+        assert!(result.is_err());
+
+        let input = parse("(/ 10.0 0)").unwrap();
+        let result = evaluate(input, &mut env);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_floor() {
+        let mut env = Environment::new();
+        env.init();
+        let input = parse("(floor 1.5)").unwrap();
+        let expected = LispValue::Float(1.0);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+
+        let input = parse("(floor (- 1.5))").unwrap();
+        let expected = LispValue::Float(-2.0);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+
+        let input = parse("(floor 10)").unwrap();
+        let expected = LispValue::Float(10.0);
+        let result = evaluate(input, &mut env).unwrap();
+        assert_eq!(result, expected);
+    }
 }
