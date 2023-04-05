@@ -1,10 +1,15 @@
 use crate::ast::{evaluate, LispError, LispResult, LispValue};
-use crate::Environment;
+use crate::prelude::Environment;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+fn expand_pairs_args(args: &[LispValue]) -> Vec<LispValue> {
+    Vec::from(args).into_iter().flatten().collect()
+}
+
 fn add(_: &mut Environment, args: &[LispValue]) -> LispResult {
-    let sum = args
+    let parsed_args = expand_pairs_args(args);
+    let sum = parsed_args
         .iter()
         .map(|arg| match arg {
             LispValue::Number(n) => Ok(LispValue::Number(*n)),
@@ -39,7 +44,8 @@ fn multiply(_: &mut Environment, args: &[LispValue]) -> LispResult {
     Ok(product)
 }
 
-fn divide(_: &mut Environment, args: &[LispValue]) -> LispResult {
+fn divide(_: &mut Environment, uargs: &[LispValue]) -> LispResult {
+    let args = expand_pairs_args(uargs);
     if args.len() != 2 {
         return Err(LispError::Generic("Expected 2 arguments".to_string()));
     }
@@ -223,6 +229,16 @@ fn equalq(_: &mut Environment, args: &[LispValue]) -> LispResult {
     Ok(LispValue::Number((args[0] == args[1]) as i64))
 }
 
+fn cons(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    if args.len() != 2 {
+        return Err(LispError::Generic("Expected 2 arguments".to_string()));
+    }
+    Ok(LispValue::Pair(Box::new((
+        args[0].clone(),
+        args[1].clone(),
+    ))))
+}
+
 pub fn built_in_functions() -> HashMap<String, LispValue> {
     let mut functions = HashMap::new();
 
@@ -262,6 +278,10 @@ pub fn built_in_functions() -> HashMap<String, LispValue> {
     );
     // Predicates
     functions.insert(
+        "cons".to_string(),
+        LispValue::Function("cons".to_string(), Rc::new(cons)),
+    );
+    functions.insert(
         "eq".to_string(),
         LispValue::Function("eq".to_string(), Rc::new(equalq)),
     );
@@ -286,7 +306,7 @@ mod tests {
     use super::*;
     use crate::ast::evaluate;
     use crate::parser::parse;
-    use crate::Environment;
+    use crate::prelude::Environment;
 
     #[test]
     fn test_add() {
