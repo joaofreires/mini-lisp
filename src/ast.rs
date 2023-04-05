@@ -1,3 +1,4 @@
+use super::Environment;
 use std::fmt;
 use std::rc::Rc;
 
@@ -12,6 +13,7 @@ pub enum LispValue {
         String,
         Rc<dyn Fn(&[LispValue]) -> Result<LispValue, LispError>>,
     ),
+    Lambda(Lambda),
 }
 
 impl PartialEq for LispValue {
@@ -21,6 +23,7 @@ impl PartialEq for LispValue {
             (LispValue::Str(a), LispValue::Str(b)) => a == b,
             (LispValue::Symbol(a), LispValue::Symbol(b)) => a == b,
             (LispValue::List(a), LispValue::List(b)) => a == b,
+            (LispValue::Lambda(a), LispValue::Lambda(b)) => a == b,
             (LispValue::Function(_, _), LispValue::Function(_, _)) => false,
             _ => false,
         }
@@ -36,6 +39,7 @@ impl fmt::Debug for LispValue {
             LispValue::Symbol(s) => write!(f, "Symbol({})", s),
             LispValue::List(l) => write!(f, "List({:?})", l),
             LispValue::Function(name, _) => write!(f, "Function({})", name),
+            LispValue::Lambda(lambda) => write!(f, "Lambda({:?})", lambda),
         }
     }
 }
@@ -49,8 +53,15 @@ impl fmt::Display for LispValue {
             LispValue::Symbol(s) => write!(f, "Symbol({})", s),
             LispValue::List(l) => write!(f, "List({:?})", l),
             LispValue::Function(name, _) => write!(f, "Function({})", name),
+            LispValue::Lambda(lambda) => write!(f, "Lambda({:?})", lambda),
         }
     }
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Lambda {
+    pub params: Vec<String>,
+    pub body: Vec<LispValue>,
 }
 
 #[derive(Debug, PartialEq)]
