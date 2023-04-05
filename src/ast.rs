@@ -20,6 +20,7 @@ impl PartialEq for LispValue {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (LispValue::Number(a), LispValue::Number(b)) => a == b,
+            (LispValue::Float(a), LispValue::Float(b)) => a == b,
             (LispValue::Str(a), LispValue::Str(b)) => a == b,
             (LispValue::Symbol(a), LispValue::Symbol(b)) => a == b,
             (LispValue::List(a), LispValue::List(b)) => a == b,
