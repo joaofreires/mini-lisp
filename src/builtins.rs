@@ -66,14 +66,22 @@ fn divide(_: &mut Environment, uargs: &[LispValue]) -> LispResult {
 }
 
 fn minus(_: &mut Environment, args: &[LispValue]) -> LispResult {
-    if args.len() != 1 {
-        return Err(LispError::Generic("Expected 1 argument".to_string()));
+    if args.len() == 1 {
+        return match args[0] {
+            LispValue::Number(n) => Ok(LispValue::Number(-n)),
+            LispValue::Float(f) => Ok(LispValue::Float(-f)),
+            _ => return Err(LispError::Generic("Expected a number".to_string())),
+        };
     }
-    match args[0] {
-        LispValue::Number(n) => Ok(LispValue::Number(-n)),
-        LispValue::Float(f) => Ok(LispValue::Float(-f)),
-        _ => return Err(LispError::Generic("Expected a number".to_string())),
+    let mut vargs = args.to_vec();
+    for i in 0..(vargs.len()) {
+        match vargs[i] {
+            LispValue::Number(n) => vargs[i] = LispValue::Number(-n),
+            LispValue::Float(f) => vargs[i] = LispValue::Float(-f),
+            _ => return Err(LispError::Generic("Expected a number".to_string())),
+        }
     }
+    Ok(LispValue::List(vargs))
 }
 
 fn subtract(env: &mut Environment, args: &[LispValue]) -> LispResult {
@@ -232,6 +240,34 @@ fn equalq(_: &mut Environment, args: &[LispValue]) -> LispResult {
     Ok(LispValue::Number((args[0] == args[1]) as i64))
 }
 
+fn gt(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    if args.len() != 2 {
+        return Err(LispError::Generic("Expected 2 arguments".to_string()));
+    }
+    Ok(LispValue::Number((args[0] > args[1]) as i64))
+}
+
+fn gte(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    if args.len() != 2 {
+        return Err(LispError::Generic("Expected 2 arguments".to_string()));
+    }
+    Ok(LispValue::Number((args[0] >= args[1]) as i64))
+}
+
+fn lt(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    if args.len() != 2 {
+        return Err(LispError::Generic("Expected 2 arguments".to_string()));
+    }
+    Ok(LispValue::Number((args[0] < args[1]) as i64))
+}
+
+fn lte(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    if args.len() != 2 {
+        return Err(LispError::Generic("Expected 2 arguments".to_string()));
+    }
+    Ok(LispValue::Number((args[0] <= args[1]) as i64))
+}
+
 fn cons(_: &mut Environment, args: &[LispValue]) -> LispResult {
     if args.len() != 2 {
         return Err(LispError::Generic("Expected 2 arguments".to_string()));
@@ -240,6 +276,38 @@ fn cons(_: &mut Environment, args: &[LispValue]) -> LispResult {
         args[0].clone(),
         args[1].clone(),
     ))))
+}
+
+fn car(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    if args.len() != 1 {
+        return Err(LispError::Generic("Expected 1 arguments".to_string()));
+    }
+    match &args[0] {
+        LispValue::Pair(value) => Ok(value.0.clone()),
+        value => Err(LispError::Generic(format!(
+            "Expected cons structure found {:?}",
+            value
+        ))),
+    }
+}
+
+fn cdr(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    if args.len() != 1 {
+        return Err(LispError::Generic("Expected 1 arguments".to_string()));
+    }
+    match &args[0] {
+        LispValue::Pair(value) => Ok(value.1.clone()),
+        value => Err(LispError::Generic(format!(
+            "Expected cons structure found {:?}",
+            value
+        ))),
+    }
+}
+
+fn lisp_else(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    let mut v = Vec::from([LispValue::Number(1)]);
+    v.extend(args.to_vec());
+    Ok(LispValue::List(v))
 }
 
 pub fn built_in_functions() -> HashMap<String, LispValue> {
@@ -285,8 +353,8 @@ pub fn built_in_functions() -> HashMap<String, LispValue> {
         LispValue::Function("cons".to_string(), Rc::new(cons)),
     );
     functions.insert(
-        "eq".to_string(),
-        LispValue::Function("eq".to_string(), Rc::new(equalq)),
+        "=".to_string(),
+        LispValue::Function("=".to_string(), Rc::new(equalq)),
     );
     functions.insert(
         "if".to_string(),
@@ -297,8 +365,40 @@ pub fn built_in_functions() -> HashMap<String, LispValue> {
         LispValue::Function("cond".to_string(), Rc::new(lisp_cond)),
     );
     functions.insert(
+        "else".to_string(),
+        LispValue::Function("else".to_string(), Rc::new(lisp_else)),
+    );
+    functions.insert(
         "and".to_string(),
         LispValue::Function("and".to_string(), Rc::new(lisp_and)),
+    );
+    functions.insert(
+        "car".to_string(),
+        LispValue::Function("car".to_string(), Rc::new(car)),
+    );
+    functions.insert(
+        "cdr".to_string(),
+        LispValue::Function("cdr".to_string(), Rc::new(cdr)),
+    );
+    functions.insert(
+        "neg".to_string(),
+        LispValue::Function("neg".to_string(), Rc::new(minus)),
+    );
+    functions.insert(
+        ">".to_string(),
+        LispValue::Function(">".to_string(), Rc::new(gt)),
+    );
+    functions.insert(
+        ">=".to_string(),
+        LispValue::Function(">=".to_string(), Rc::new(gte)),
+    );
+    functions.insert(
+        "<".to_string(),
+        LispValue::Function("<".to_string(), Rc::new(lt)),
+    );
+    functions.insert(
+        "<=".to_string(),
+        LispValue::Function("<=".to_string(), Rc::new(lte)),
     );
 
     functions

@@ -148,6 +148,11 @@ fn parse_symbol_or_function(chars: &mut Peekable<Chars>) -> LispResult {
             || *ch == '+'
             || *ch == '*'
             || *ch == '/'
+            || *ch == '='
+            || *ch == '>'
+            || *ch == '<'
+            || *ch == '?'
+            || *ch == '^'
         {
             symbol.push(*ch);
             chars.next();
