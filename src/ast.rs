@@ -1,4 +1,5 @@
 use crate::prelude::Environment;
+use std::cmp::Ordering;
 use std::collections::VecDeque;
 use std::fmt;
 use std::rc::Rc;
@@ -30,6 +31,77 @@ impl PartialEq for LispValue {
             (LispValue::Lambda(a), LispValue::Lambda(b)) => a == b,
             (LispValue::Function(_, _), LispValue::Function(_, _)) => false,
             (LispValue::Nil(), LispValue::Nil()) => true,
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd for LispValue {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (LispValue::Number(a), LispValue::Number(b)) => Some(a.cmp(b)),
+            (LispValue::Float(a), LispValue::Float(b)) => Some(a.total_cmp(b)),
+            (LispValue::Number(a), LispValue::Float(b)) => Some(b.total_cmp(&(*a as f64))),
+            (LispValue::Float(a), LispValue::Number(b)) => Some(a.total_cmp(&(*b as f64))),
+            (LispValue::Str(a), LispValue::Str(b)) => Some(a.cmp(b)),
+            (LispValue::Symbol(a), LispValue::Symbol(b)) => Some(a.cmp(b)),
+            (LispValue::List(_), LispValue::List(_)) => None,
+            (LispValue::Lambda(_), LispValue::Lambda(_)) => None,
+            (LispValue::Function(_, _), LispValue::Function(_, _)) => None,
+            (LispValue::Nil(), LispValue::Nil()) => None,
+            _ => None,
+        }
+    }
+
+    fn lt(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LispValue::Number(a), LispValue::Number(b)) => a < b,
+            (LispValue::Float(a), LispValue::Float(b)) => a < b,
+            (LispValue::Str(a), LispValue::Str(b)) => a < b,
+            (LispValue::Symbol(a), LispValue::Symbol(b)) => a < b,
+            (LispValue::List(a), LispValue::List(b)) => a < b,
+            (LispValue::Lambda(_), LispValue::Lambda(_)) => false,
+            (LispValue::Function(_, _), LispValue::Function(_, _)) => false,
+            (LispValue::Nil(), LispValue::Nil()) => false,
+            _ => false,
+        }
+    }
+    fn le(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LispValue::Number(a), LispValue::Number(b)) => a <= b,
+            (LispValue::Float(a), LispValue::Float(b)) => a <= b,
+            (LispValue::Str(a), LispValue::Str(b)) => a <= b,
+            (LispValue::Symbol(a), LispValue::Symbol(b)) => a <= b,
+            (LispValue::List(a), LispValue::List(b)) => a <= b,
+            (LispValue::Lambda(_), LispValue::Lambda(_)) => false,
+            (LispValue::Function(_, _), LispValue::Function(_, _)) => false,
+            (LispValue::Nil(), LispValue::Nil()) => false,
+            _ => false,
+        }
+    }
+    fn gt(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LispValue::Number(a), LispValue::Number(b)) => a > b,
+            (LispValue::Float(a), LispValue::Float(b)) => a > b,
+            (LispValue::Str(a), LispValue::Str(b)) => a > b,
+            (LispValue::Symbol(a), LispValue::Symbol(b)) => a > b,
+            (LispValue::List(a), LispValue::List(b)) => a > b,
+            (LispValue::Lambda(_), LispValue::Lambda(_)) => false,
+            (LispValue::Function(_, _), LispValue::Function(_, _)) => false,
+            (LispValue::Nil(), LispValue::Nil()) => false,
+            _ => false,
+        }
+    }
+    fn ge(&self, other: &Self) -> bool {
+        match (self, other) {
+            (LispValue::Number(a), LispValue::Number(b)) => a >= b,
+            (LispValue::Float(a), LispValue::Float(b)) => a >= b,
+            (LispValue::Str(a), LispValue::Str(b)) => a >= b,
+            (LispValue::Symbol(a), LispValue::Symbol(b)) => a >= b,
+            (LispValue::List(a), LispValue::List(b)) => a >= b,
+            (LispValue::Lambda(_), LispValue::Lambda(_)) => false,
+            (LispValue::Function(_, _), LispValue::Function(_, _)) => false,
+            (LispValue::Nil(), LispValue::Nil()) => false,
             _ => false,
         }
     }
