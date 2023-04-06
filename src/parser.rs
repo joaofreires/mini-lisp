@@ -154,8 +154,10 @@ fn parse_symbol_or_function(chars: &mut Peekable<Chars>) -> LispResult {
     if symbol.is_empty() {
         return Err(LispError::Generic("Unexpected character".to_string()));
     }
-
-    Ok(LispValue::Symbol(symbol))
+    match symbol.as_str() {
+        "nil" => Ok(LispValue::Nil()),
+        _ => Ok(LispValue::Symbol(symbol)),
+    }
 }
 
 fn skip_whitespace(chars: &mut Peekable<Chars>, force_space: bool) -> Result<(), LispError> {

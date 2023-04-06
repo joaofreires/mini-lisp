@@ -16,6 +16,7 @@ pub enum LispValue {
     ),
     Lambda(Lambda),
     Pair(Box<(LispValue, LispValue)>),
+    Nil(),
 }
 
 impl PartialEq for LispValue {
@@ -28,6 +29,7 @@ impl PartialEq for LispValue {
             (LispValue::List(a), LispValue::List(b)) => a == b,
             (LispValue::Lambda(a), LispValue::Lambda(b)) => a == b,
             (LispValue::Function(_, _), LispValue::Function(_, _)) => false,
+            (LispValue::Nil(), LispValue::Nil()) => true,
             _ => false,
         }
     }
@@ -43,6 +45,7 @@ impl fmt::Debug for LispValue {
             LispValue::List(l) => write!(f, "List({:?})", l),
             LispValue::Function(name, _) => write!(f, "Function({})", name),
             LispValue::Lambda(lambda) => write!(f, "Lambda({:?})", lambda),
+            LispValue::Nil() => write!(f, "Nil()"),
             LispValue::Pair(pair) => {
                 let (first, second) = *(pair.clone());
                 write!(f, "Pair<{:?}, {:?}>", first.to_string(), second.to_string())
@@ -61,6 +64,7 @@ impl fmt::Display for LispValue {
             LispValue::List(l) => write!(f, "List({:?})", l),
             LispValue::Function(name, _) => write!(f, "Function({})", name),
             LispValue::Lambda(lambda) => write!(f, "Lambda({:?})", lambda),
+            LispValue::Nil() => write!(f, "Nil()"),
             LispValue::Pair(pair) => {
                 let (first, second) = *(pair.clone());
                 write!(f, "Pair<{:?}, {:?}>", first.to_string(), second.to_string())
@@ -118,6 +122,7 @@ pub fn evaluate(expr: LispValue, env: &mut Environment) -> LispResult {
         LispValue::Function(_, _) | LispValue::Lambda(_) | LispValue::Pair(_) => Err(
             LispError::Generic("Cannot evaluate a function or lambda directly".to_string()),
         ),
+        LispValue::Nil() => Ok(LispValue::Nil()),
     }
 }
 
@@ -206,8 +211,10 @@ fn apply_function(function: LispValue, args: &[LispValue], env: &mut Environment
                 .collect::<Vec<LispValue>>()),
             env, // lambda functions receive arguments unpacked
         ),
-        _ => Err(LispError::Generic(
-            "First element in the list should be a function or lambda".to_string(),
-        )),
+        _ => {
+            let mut v = Vec::from([function]);
+            v.extend(args.to_vec());
+            Ok(LispValue::List(v))
+        }
     }
 }

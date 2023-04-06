@@ -46,20 +46,23 @@ fn multiply(_: &mut Environment, args: &[LispValue]) -> LispResult {
 
 fn divide(_: &mut Environment, uargs: &[LispValue]) -> LispResult {
     let args = expand_pairs_args(uargs);
-    if args.len() != 2 {
+    if args.len() < 2 {
         return Err(LispError::Generic("Expected 2 arguments".to_string()));
     }
-    let dividend = match args[0] {
+    let mut dividend = match args[0] {
         LispValue::Number(n) => Ok(n as f64),
         LispValue::Float(f) => Ok(f),
         _ => Err(LispError::Generic("Expected a number".to_string())),
     }?;
-    let divisor = match args[1] {
-        LispValue::Number(n) if n != 0 => Ok(n as f64),
-        LispValue::Float(f) if f != 0.0 => Ok(f),
-        _ => Err(LispError::Generic("Expected a non-zero number".to_string())),
-    }?;
-    Ok(LispValue::Float(dividend / divisor))
+    for arg in args[1..].iter() {
+        let divisor = match *arg {
+            LispValue::Number(n) if n != 0 => Ok(n as f64),
+            LispValue::Float(f) if f != 0.0 => Ok(f),
+            _ => Err(LispError::Generic("Expected a non-zero number".to_string())),
+        }?;
+        dividend = dividend / divisor;
+    }
+    Ok(LispValue::Float(dividend))
 }
 
 fn minus(_: &mut Environment, args: &[LispValue]) -> LispResult {
@@ -203,7 +206,7 @@ fn lisp_cond(env: &mut Environment, args: &[LispValue]) -> LispResult {
             }
         }
     }
-    Err(LispError::Generic("No true conditions".to_string()))
+    Ok(LispValue::Nil())
 }
 
 fn lisp_and(env: &mut Environment, args: &[LispValue]) -> LispResult {
