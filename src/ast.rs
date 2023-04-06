@@ -110,6 +110,7 @@ pub struct Lambda {
 #[derive(Debug, PartialEq)]
 pub enum LispError {
     Generic(String),
+    EndOfExpression(),
 }
 
 pub type LispResult = Result<LispValue, LispError>;

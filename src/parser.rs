@@ -19,7 +19,10 @@ fn parse_expression(chars: &mut Peekable<Chars>) -> LispResult {
         '0'..='9' => parse_number(chars),
         ';' => {
             skip_comment(chars);
-            parse_expression(chars)
+            match chars.peek() {
+                Some(')') => Err(LispError::EndOfExpression()),
+                _ => parse_expression(chars),
+            }
         }
         _ => parse_symbol_or_function(chars),
     }
@@ -38,16 +41,17 @@ fn parse_list(chars: &mut Peekable<Chars>) -> LispResult {
                 break;
             }
             Some(_) => {
-                let expr = parse_expression(chars)?;
+                let expr = match parse_expression(chars) {
+                    Err(LispError::EndOfExpression()) => break,
+                    Ok(value) => value,
+                    Err(err) => return Err(err),
+                };
                 let force_space = match expr {
                     LispValue::Float(_) | LispValue::Number(_) | LispValue::Str(_) => true,
                     _ => false,
                 };
                 list.push(expr);
-                match skip_whitespace(chars, force_space) {
-                    Err(err) => return Err(err),
-                    _ => (),
-                };
+                skip_whitespace(chars, force_space)?;
             }
             None => {
                 return Err(LispError::Generic(
