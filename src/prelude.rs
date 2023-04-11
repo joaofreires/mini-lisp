@@ -42,6 +42,17 @@ impl Environment {
         Err(LispError::Generic(format!("Variable '{}' not found", name)))
     }
 
+    pub fn has(&self, name: &str) -> bool {
+        if self.values.borrow().contains_key(name) {
+            return true;
+        }
+
+        if let Some(parent) = &self.parent {
+            return parent.borrow().has(name);
+        }
+        false
+    }
+
     pub fn init(&mut self) {
         for (name, func) in built_in_functions() {
             self.set(name, func);
