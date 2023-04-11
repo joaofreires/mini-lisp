@@ -29,6 +29,7 @@ impl PartialEq for LispValue {
             (LispValue::Symbol(a), LispValue::Symbol(b)) => a == b,
             (LispValue::List(a), LispValue::List(b)) => a == b,
             (LispValue::Lambda(a), LispValue::Lambda(b)) => a == b,
+            (LispValue::Pair(a), LispValue::Pair(b)) => a.0 == b.0 && a.1 == b.1,
             (LispValue::Function(_, _), LispValue::Function(_, _)) => false,
             (LispValue::Nil(), LispValue::Nil()) => true,
             _ => false,
@@ -45,6 +46,12 @@ impl PartialOrd for LispValue {
             (LispValue::Float(a), LispValue::Number(b)) => Some(a.total_cmp(&(*b as f64))),
             (LispValue::Str(a), LispValue::Str(b)) => Some(a.cmp(b)),
             (LispValue::Symbol(a), LispValue::Symbol(b)) => Some(a.cmp(b)),
+            (LispValue::Pair(a), LispValue::Pair(b)) => {
+                if let Some(_) = a.0.partial_cmp(&b.clone().0).or(None) {
+                    return a.1.partial_cmp(&b.clone().1).or(None);
+                }
+                None
+            }
             (LispValue::List(_), LispValue::List(_)) => None,
             (LispValue::Lambda(_), LispValue::Lambda(_)) => None,
             (LispValue::Function(_, _), LispValue::Function(_, _)) => None,
@@ -276,6 +283,12 @@ fn evaluate_list(list: Vec<LispValue>, env: &mut Environment) -> LispResult {
                 )),
             }
         }
+        LispValue::Symbol(sym) if sym == "quote" => {
+            if args.len() != 1 {
+                return Err(LispError::Generic("Expected 1 arguments".to_string()));
+            }
+            Ok(args[0].clone())
+        }
         _ => {
             let function = evaluate(first.clone(), env)?;
             let evaluated_args = args
@@ -379,5 +392,162 @@ fn apply_function(function: LispValue, args: &[LispValue], env: &mut Environment
             v.extend(args.to_vec());
             Ok(LispValue::List(v))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_evaluate_simple_values() {
+        let mut env = Environment::default();
+
+        assert_eq!(
+            evaluate(LispValue::Number(42), &mut env).unwrap(),
+            LispValue::Number(42)
+        );
+
+        assert_eq!(
+            evaluate(LispValue::Float(3.14), &mut env).unwrap(),
+            LispValue::Float(3.14)
+        );
+
+        assert_eq!(
+            evaluate(LispValue::Str("hello".to_string()), &mut env).unwrap(),
+            LispValue::Str("hello".to_string())
+        );
+
+        assert_eq!(
+            evaluate(LispValue::Nil(), &mut env).unwrap(),
+            LispValue::Nil()
+        );
+    }
+
+    #[test]
+    fn test_evaluate_symbol() {
+        let mut env = Environment::default();
+        env.set("x".to_string(), LispValue::Number(42));
+
+        assert_eq!(
+            evaluate(LispValue::Symbol("x".to_string()), &mut env).unwrap(),
+            LispValue::Number(42)
+        );
+    }
+
+    #[test]
+    fn test_evaluate_lambda() {
+        let mut env = Environment::default();
+
+        let lambda_expr = LispValue::List(vec![
+            LispValue::Symbol("lambda".to_string()),
+            LispValue::List(vec![LispValue::Symbol("x".to_string())]),
+            LispValue::Symbol("x".to_string()),
+        ]);
+
+        let lambda = match evaluate(lambda_expr.clone(), &mut env).unwrap() {
+            LispValue::Lambda(lambda) => lambda,
+            _ => panic!("Expected a Lambda"),
+        };
+
+        assert_eq!(lambda.params, vec!["x".to_string()]);
+        assert_eq!(lambda.body, vec![LispValue::Symbol("x".to_string())]);
+    }
+
+    #[test]
+    fn test_evaluate_set() {
+        let mut env = Environment::default();
+
+        let set_expr = LispValue::List(vec![
+            LispValue::Symbol("set".to_string()),
+            LispValue::Symbol("x".to_string()),
+            LispValue::Number(42),
+        ]);
+
+        assert_eq!(
+            evaluate(set_expr.clone(), &mut env).unwrap(),
+            LispValue::Number(42)
+        );
+
+        assert_eq!(env.get("x").unwrap(), LispValue::Number(42));
+    }
+
+    #[test]
+    fn test_evaluate_function_call() {
+        let mut env = Environment::default();
+        env.set(
+            "add".to_string(),
+            LispValue::Function(
+                "add".to_string(),
+                Rc::new(|_: &mut Environment, args: &[LispValue]| {
+                    let a = match &args[0] {
+                        LispValue::Number(a) => a,
+                        _ => return Err(LispError::Generic("Expected a number".to_string())),
+                    };
+                    let b = match &args[1] {
+                        LispValue::Number(b) => b,
+                        _ => return Err(LispError::Generic("Expected a number".to_string())),
+                    };
+                    Ok(LispValue::Number(a + b))
+                }),
+            ),
+        );
+
+        let function_call_expr = LispValue::List(vec![
+            LispValue::Symbol("add".to_string()),
+            LispValue::Number(1),
+            LispValue::Number(2),
+        ]);
+        assert_eq!(
+            evaluate(function_call_expr.clone(), &mut env).unwrap(),
+            LispValue::Number(3)
+        );
+    }
+
+    #[test]
+    fn test_evaluate_list() {
+        let mut env = Environment::default();
+        env.init();
+
+        let list_expr = LispValue::List(vec![
+            LispValue::Symbol("list".to_string()),
+            LispValue::Number(1),
+            LispValue::Number(2),
+            LispValue::Number(3),
+        ]);
+        assert_eq!(
+            evaluate(list_expr.clone(), &mut env).unwrap(),
+            LispValue::List(vec![
+                LispValue::Number(1),
+                LispValue::Number(2),
+                LispValue::Number(3)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_evaluate_quoted_list() {
+        let mut env = Environment::default();
+
+        let quoted_list_expr = LispValue::List(vec![
+            LispValue::Symbol("quote".to_string()),
+            LispValue::List(vec![
+                LispValue::Symbol("a".to_string()),
+                LispValue::Symbol("b".to_string()),
+                LispValue::Symbol("c".to_string()),
+            ]),
+        ]);
+        println!(
+            "{:?}",
+            evaluate(quoted_list_expr.clone(), &mut env).unwrap()
+        );
+        assert_eq!(
+            evaluate(quoted_list_expr.clone(), &mut env).unwrap(),
+            LispValue::List(vec![
+                LispValue::Symbol("a".to_string()),
+                LispValue::Symbol("b".to_string()),
+                LispValue::Symbol("c".to_string())
+            ])
+        );
     }
 }

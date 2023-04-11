@@ -308,6 +308,11 @@ fn cdr(_: &mut Environment, args: &[LispValue]) -> LispResult {
     }
 }
 
+fn list(_: &mut Environment, args: &[LispValue]) -> LispResult {
+    let v = Vec::from(args);
+    Ok(LispValue::List(v))
+}
+
 fn lisp_else(_: &mut Environment, args: &[LispValue]) -> LispResult {
     let mut v = Vec::new();
     if args.len() == 0 {
@@ -364,6 +369,10 @@ pub fn built_in_functions() -> HashMap<String, LispValue> {
         LispValue::Function("=".to_string(), Rc::new(equalq)),
     );
     functions.insert(
+        "equal?".to_string(),
+        LispValue::Function("equal?".to_string(), Rc::new(equalq)),
+    );
+    functions.insert(
         "if".to_string(),
         LispValue::Function("if".to_string(), Rc::new(lisp_if)),
     );
@@ -407,6 +416,10 @@ pub fn built_in_functions() -> HashMap<String, LispValue> {
         "<=".to_string(),
         LispValue::Function("<=".to_string(), Rc::new(lte)),
     );
+    functions.insert(
+        "list".to_string(),
+        LispValue::Function("list".to_string(), Rc::new(list)),
+    );
 
     functions
 }
@@ -417,6 +430,30 @@ mod tests {
     use crate::ast::evaluate;
     use crate::parser::parse;
     use crate::prelude::Environment;
+
+    fn create_environment() -> Environment {
+        let mut env = Environment::default();
+        env.init();
+        env
+    }
+
+    macro_rules! number {
+        ($n:expr) => {
+            LispValue::Number($n)
+        };
+    }
+
+    macro_rules! float {
+        ($f:expr) => {
+            LispValue::Float($f)
+        };
+    }
+
+    macro_rules! args {
+        ($($arg:expr),*) => {
+            vec![$($arg),*].as_slice()
+        };
+    }
 
     #[test]
     fn test_add() {
@@ -504,5 +541,187 @@ mod tests {
         let expected = LispValue::Float(10.0);
         let result = evaluate(input, &mut env).unwrap();
         assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_ceiling() {
+        let mut env = create_environment();
+
+        assert_eq!(ceiling(&mut env, args![number!(5)]).unwrap(), float!(5.0));
+        assert_eq!(ceiling(&mut env, args![number!(-5)]).unwrap(), float!(-5.0));
+        assert_eq!(ceiling(&mut env, args![float!(3.3)]).unwrap(), float!(4.0));
+        assert_eq!(
+            ceiling(&mut env, args![float!(-3.3)]).unwrap(),
+            float!(-3.0)
+        );
+    }
+
+    #[test]
+    fn test_truncate() {
+        let mut env = create_environment();
+
+        assert_eq!(truncate(&mut env, args![number!(5)]).unwrap(), float!(5.0));
+        assert_eq!(
+            truncate(&mut env, args![number!(-5)]).unwrap(),
+            float!(-5.0)
+        );
+        assert_eq!(truncate(&mut env, args![float!(3.3)]).unwrap(), float!(3.0));
+        assert_eq!(
+            truncate(&mut env, args![float!(-3.3)]).unwrap(),
+            float!(-3.0)
+        );
+    }
+
+    #[test]
+    fn test_round() {
+        let mut env = create_environment();
+
+        assert_eq!(round(&mut env, args![number!(5)]).unwrap(), float!(5.0));
+        assert_eq!(round(&mut env, args![number!(-5)]).unwrap(), float!(-5.0));
+        assert_eq!(round(&mut env, args![float!(3.3)]).unwrap(), float!(3.0));
+        assert_eq!(round(&mut env, args![float!(-3.3)]).unwrap(), float!(-3.0));
+        assert_eq!(round(&mut env, args![float!(3.5)]).unwrap(), float!(4.0));
+        assert_eq!(round(&mut env, args![float!(-3.5)]).unwrap(), float!(-4.0));
+    }
+
+    // Test 'cond' function
+    #[test]
+    fn test_lisp_cond() {
+        let mut env = create_environment();
+        let result = evaluate(
+            parse("(cond ((= 1 2) \"no\") ((> 2 1) \"yes\"))").unwrap(),
+            &mut env,
+        )
+        .unwrap();
+        assert_eq!(result, LispValue::Str("yes".to_string()));
+    }
+
+    // Test 'and' function
+    #[test]
+    fn test_lisp_and() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(and 1 1)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(1));
+
+        let result = evaluate(parse("(and 1 0)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(0));
+    }
+
+    // Test 'equal?' function
+    #[test]
+    fn test_equalq() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(equal? 1 1)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(1));
+
+        let result = evaluate(parse("(equal? 1 2)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(0));
+    }
+
+    // Test '>' function
+    #[test]
+    fn test_gt() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(> 2 1)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(1));
+
+        let result = evaluate(parse("(> 1 2)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(0));
+    }
+
+    // Test '>=' function
+    #[test]
+    fn test_gte() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(>= 2 1)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(1));
+
+        let result = evaluate(parse("(>= 1 1)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(1));
+
+        let result = evaluate(parse("(>= 1 2)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(0));
+    }
+
+    // Test '<' function
+    #[test]
+    fn test_lt() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(< 1 2)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(1));
+
+        let result = evaluate(parse("(< 2 1)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(0));
+    }
+
+    // Test '<=' function
+    #[test]
+    fn test_lte() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(<= 1 2)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(1));
+
+        let result = evaluate(parse("(<= 1 1)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(1));
+
+        let result = evaluate(parse("(<= 2 1)").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(0));
+    }
+
+    // Test 'cons' function
+    #[test]
+    fn test_cons() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(cons 1 2)").unwrap(), &mut env).unwrap();
+        assert_eq!(
+            result,
+            LispValue::Pair(Box::new((LispValue::Number(1), LispValue::Number(2))))
+        );
+    }
+
+    // Test 'car' function
+    #[test]
+    fn test_car() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(car (cons 1 2))").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(1));
+    }
+
+    // Test 'cdr' function
+    #[test]
+    fn test_cdr() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(cdr (cons 1 2))").unwrap(), &mut env).unwrap();
+        assert_eq!(result, LispValue::Number(2));
+    }
+
+    // Test 'list' function
+    #[test]
+    fn test_list() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(list 1 2 3)").unwrap(), &mut env).unwrap();
+        assert_eq!(
+            result,
+            LispValue::List(vec![
+                LispValue::Number(1),
+                LispValue::Number(2),
+                LispValue::Number(3)
+            ])
+        );
+    }
+
+    // Test 'else' function
+    #[test]
+    fn test_lisp_else() {
+        let mut env = create_environment();
+        let result = evaluate(parse("(else 1 2 3)").unwrap(), &mut env).unwrap();
+        assert_eq!(
+            result,
+            LispValue::List(vec![
+                LispValue::Number(1),
+                LispValue::Number(2),
+                LispValue::Number(3)
+            ])
+        );
     }
 }
