@@ -234,10 +234,14 @@ fn lisp_and(env: &mut Environment, args: &[LispValue]) -> LispResult {
 }
 
 fn equalq(_: &mut Environment, args: &[LispValue]) -> LispResult {
-    if args.len() != 2 {
-        return Err(LispError::Generic("Expected 2 arguments".to_string()));
+    if args.len() == 1 {
+        return Ok(LispValue::Number(1));
     }
-    Ok(LispValue::Number((args[0] == args[1]) as i64))
+    let mut iter = args.into_iter();
+    let first = iter.next().ok_or(LispError::Generic(
+        "Equal operation needs arguments".to_string(),
+    ))?;
+    Ok(LispValue::Number(iter.all(|elem| elem == first) as i64))
 }
 
 fn gt(_: &mut Environment, args: &[LispValue]) -> LispResult {
@@ -305,7 +309,10 @@ fn cdr(_: &mut Environment, args: &[LispValue]) -> LispResult {
 }
 
 fn lisp_else(_: &mut Environment, args: &[LispValue]) -> LispResult {
-    let mut v = Vec::from([LispValue::Number(1)]);
+    let mut v = Vec::new();
+    if args.len() == 0 {
+        v.push(LispValue::Number(1));
+    }
     v.extend(args.to_vec());
     Ok(LispValue::List(v))
 }
