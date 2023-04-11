@@ -290,8 +290,6 @@ fn evaluate_list(list: Vec<LispValue>, env: &mut Environment) -> LispResult {
 fn evaluate_lambda(lambda: Lambda, args: &[LispValue], env: &mut Environment) -> LispResult {
     let (fixed_params, variadic) = split_params(&lambda.params);
 
-    println!("{:?}", args);
-
     if !valid_argument_count(args.len(), fixed_params.len(), variadic) {
         return Err(LispError::Generic(format!(
             "Invalid number of arguments, expected {} required arguments, got {}",
