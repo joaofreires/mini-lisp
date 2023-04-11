@@ -154,6 +154,9 @@ impl IntoIterator for LispValue {
             LispValue::Pair(pair) => IntoIter {
                 remaining: VecDeque::from([pair.0, pair.1]),
             },
+            LispValue::List(list) => IntoIter {
+                remaining: VecDeque::from(list),
+            },
             _ => IntoIter {
                 remaining: VecDeque::from([self]),
             },
@@ -183,6 +186,7 @@ pub struct Lambda {
 pub enum LispError {
     Generic(String),
     EndOfExpression(),
+    EndOfInput(),
 }
 
 pub type LispResult = Result<LispValue, LispError>;
@@ -190,7 +194,10 @@ pub type LispResult = Result<LispValue, LispError>;
 pub fn evaluate(expr: LispValue, env: &mut Environment) -> LispResult {
     match expr {
         LispValue::Number(_) | LispValue::Float(_) | LispValue::Str(_) => Ok(expr),
-        LispValue::Symbol(name) => env.get(&name),
+        LispValue::Symbol(name) => match env.get(&name)? {
+            LispValue::Function(_, _) => Ok(env.get(&name)?),
+            _ => evaluate(env.get(&name)?, env),
+        },
         LispValue::List(list) => evaluate_list(list, env),
         LispValue::Function(_, _) | LispValue::Lambda(_) | LispValue::Pair(_) => Err(
             LispError::Generic("Cannot evaluate a function or lambda directly".to_string()),
@@ -239,6 +246,36 @@ fn evaluate_list(list: Vec<LispValue>, env: &mut Environment) -> LispResult {
                 body: vec![body],
             }))
         }
+        LispValue::Symbol(sym) if sym == "set" => {
+            if args.len() != 2 {
+                return Err(LispError::Generic(format!(
+                    "Invalid number of arguments for set, expected 2, got {}",
+                    args.len()
+                )));
+            }
+            match &args[0] {
+                LispValue::Symbol(symbol) => {
+                    if env.has(symbol) {
+                        return Err(LispError::Generic(format!(
+                            "Symbol '{}' already defined in this context",
+                            symbol,
+                        )));
+                    } else {
+                        let result = args[1].clone();
+                        env.set(symbol.to_string(), result.clone());
+                        return match result {
+                            LispValue::Number(_) | LispValue::Float(_) | LispValue::Str(_) => {
+                                Ok(result)
+                            }
+                            _ => Ok(LispValue::Nil()),
+                        };
+                    }
+                }
+                _ => Err(LispError::Generic(
+                    "variable name must be a symbol".to_string(),
+                )),
+            }
+        }
         _ => {
             let function = evaluate(first.clone(), env)?;
             let evaluated_args = args
@@ -251,26 +288,81 @@ fn evaluate_list(list: Vec<LispValue>, env: &mut Environment) -> LispResult {
 }
 
 fn evaluate_lambda(lambda: Lambda, args: &[LispValue], env: &mut Environment) -> LispResult {
-    if lambda.params.len() != args.len() {
+    let (fixed_params, variadic) = split_params(&lambda.params);
+
+    println!("{:?}", args);
+
+    if !valid_argument_count(args.len(), fixed_params.len(), variadic) {
         return Err(LispError::Generic(format!(
-            "Invalid number of arguments, expected {}, got {}",
-            lambda.params.len(),
+            "Invalid number of arguments, expected {} required arguments, got {}",
+            fixed_params.len(),
             args.len()
         )));
     }
 
-    let mut child_env = env.child(); // slow, but it works for now...
-    for (param, arg) in lambda.params.iter().zip(args) {
+    if let Err(err) = validate_variadic_position(&lambda.params) {
+        return Err(err);
+    }
+
+    let mut child_env = env.child();
+    bind_parameters(&fixed_params, args, &mut child_env);
+
+    let lambda_body = unpack_lambda_body(&lambda.body, fixed_params.len(), args);
+    evaluate(LispValue::List(lambda_body), &mut child_env)
+}
+
+fn split_params(params: &[String]) -> (Vec<String>, bool) {
+    let fixed_params: Vec<String> = params.iter().filter(|x| x != &&"...").cloned().collect();
+    let variadic = params.len() > fixed_params.len();
+    (fixed_params, variadic)
+}
+
+fn valid_argument_count(arg_count: usize, fixed_param_count: usize, variadic: bool) -> bool {
+    (arg_count == fixed_param_count && !variadic) || (arg_count >= fixed_param_count && variadic)
+}
+
+fn bind_parameters(fixed_params: &[String], args: &[LispValue], child_env: &mut Environment) {
+    for (param, arg) in fixed_params.iter().zip(args) {
         child_env.set(param.clone(), arg.clone());
     }
+}
 
-    let mut result = Err(LispError::Generic("Empty body in lambda".to_string()));
+fn unpack_lambda_body(
+    lambda_body: &[LispValue],
+    fixed_params_len: usize,
+    args: &[LispValue],
+) -> Vec<LispValue> {
+    let mut lambda_body_q = VecDeque::from(lambda_body.to_vec());
+    let mut unpacked_lambda_body = Vec::new();
 
-    for expr in &lambda.body {
-        result = evaluate(expr.clone(), &mut child_env);
+    while !lambda_body_q.is_empty() {
+        let item = lambda_body_q.pop_front().unwrap();
+        match item {
+            LispValue::Symbol(value) if value == "..." => {
+                for arg in args.iter().skip(fixed_params_len) {
+                    unpacked_lambda_body.push(arg.clone());
+                }
+            }
+            LispValue::List(items) => items
+                .iter()
+                .rev()
+                .for_each(|item| lambda_body_q.push_front(item.clone())),
+            _ => unpacked_lambda_body.push(item),
+        }
     }
+    println!("{:?}", unpacked_lambda_body);
+    unpacked_lambda_body
+}
 
-    result
+fn validate_variadic_position(params: &[String]) -> Result<(), LispError> {
+    if let Some((idx, _)) = params.iter().enumerate().find(|(_, p)| p == &&"...") {
+        if idx != params.len() - 1 {
+            return Err(LispError::Generic(
+                "Variadic argument '...' must be the last parameter".to_string(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn apply_function(function: LispValue, args: &[LispValue], env: &mut Environment) -> LispResult {
