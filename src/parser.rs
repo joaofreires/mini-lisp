@@ -2,16 +2,30 @@ use crate::ast::{LispError, LispResult, LispValue};
 use std::iter::Peekable;
 use std::str::Chars;
 
-pub fn parse(input: &str) -> LispResult {
+pub fn parse_multi(input: &str) -> LispResult {
+    let mut result = LispValue::Nil();
     let mut chars = input.chars().peekable();
-    parse_expression(&mut chars)
+    loop {
+        if let Some(_) = chars.peek() {
+            match parse_expression(&mut chars) {
+                Ok(value) => result = value,
+                Err(LispError::EndOfInput()) => break,
+                Err(err) => return Err(err),
+            }
+        } else {
+            break;
+        }
+    }
+    Ok(result)
+}
+
+pub fn parse(input: &str) -> LispResult {
+    parse_multi(input)
 }
 
 fn parse_expression(chars: &mut Peekable<Chars>) -> LispResult {
     skip_whitespace(chars, false)?;
-    let ch = chars
-        .peek()
-        .ok_or(LispError::Generic("Unexpected end of input".to_string()))?;
+    let ch = chars.peek().ok_or(LispError::EndOfInput())?;
 
     match ch {
         '(' => parse_list(chars),
@@ -42,7 +56,10 @@ fn parse_list(chars: &mut Peekable<Chars>) -> LispResult {
             }
             Some(_) => {
                 let expr = match parse_expression(chars) {
-                    Err(LispError::EndOfExpression()) => break,
+                    Err(LispError::EndOfExpression()) => {
+                        chars.next();
+                        break;
+                    }
                     Ok(value) => value,
                     Err(err) => return Err(err),
                 };
@@ -60,7 +77,6 @@ fn parse_list(chars: &mut Peekable<Chars>) -> LispResult {
             }
         }
     }
-
     Ok(LispValue::List(list))
 }
 
@@ -153,6 +169,7 @@ fn parse_symbol_or_function(chars: &mut Peekable<Chars>) -> LispResult {
             || *ch == '<'
             || *ch == '?'
             || *ch == '^'
+            || *ch == '.'
         {
             symbol.push(*ch);
             chars.next();
