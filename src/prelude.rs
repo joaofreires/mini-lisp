@@ -80,13 +80,9 @@ impl LispEngine {
     }
 
     pub fn parse(&mut self, expr: &str) -> Result<String, LispError> {
-        match parse(&expr) {
-            Ok(ast) => match evaluate(ast, &mut self.env) {
-                Ok(result) => Ok(format!("{}", result)),
-                Err(err) => Err(err),
-            },
-            Err(err) => Err(err),
-        }
+        let ast = parse(&expr)?;
+        let result = evaluate(ast, &mut self.env)?;
+        Ok(format!("{result}")
     }
 }
 
